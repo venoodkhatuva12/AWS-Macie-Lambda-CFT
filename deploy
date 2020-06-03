@@ -1,0 +1,38 @@
+rm -f LambdaFunction.zip \
+&& rm -rf LambdaFunction \
+&& mkdir LambdaFunction \
+&& cp -r ./src/* ./LambdaFunction \
+&& pip install -r ./requirements.txt -t ./LambdaFunction --no-cache-dir \
+&& find ./LambdaFunction -name "*.pyc" -type f -delete \
+&& cd ./LambdaFunction \
+&& zip -r ../LambdaFunction.zip * \
+&& cd .. \
+&& if [ -z "$1" ]; then
+    echo "No deployment S3 bucket specified."
+else
+    aws s3 cp LambdaFunction.zip s3://$1 \
+    && aws s3 --recursive cp ./resources/ s3://$1 \
+    && if [ -z "$2" ]; then
+        echo "No cloudformation stack name specified."
+    else
+        if [ -z "$3" ]; then
+            aws cloudformation create-stack --stack-name $2 \
+                --template-url https://s3.amazonaws.com/$1/CloudFormationTemplate.yml \
+                --parameters ParameterKey=BlueprintBucket,ParameterValue=$1 \
+                             ParameterKey=BlueprintObject,ParameterValue=DefaultBlueprint.json \
+                             ParameterKey=LambdaPkgBucket,ParameterValue=$1 \
+                             ParameterKey=LambdaPkgObject,ParameterValue=LambdaFunction.zip\
+                --capabilities CAPABILITY_IAM
+        else
+            aws cloudformation create-stack --stack-name $2 \
+                --template-url https://s3.amazonaws.com/$1/CloudFormationTemplate.yml \
+                --parameters ParameterKey=BlueprintBucket,ParameterValue=$1 \
+                             ParameterKey=BlueprintObject,ParameterValue=$3 \
+                             ParameterKey=LambdaPkgBucket,ParameterValue=$1 \
+                             ParameterKey=LambdaPkgObject,ParameterValue=LambdaFunction.zip\
+                --capabilities CAPABILITY_IAM
+        fi
+    fi
+fi
+
+rm -rf LambdaFunction
